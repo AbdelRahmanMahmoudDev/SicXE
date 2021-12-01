@@ -25,33 +25,29 @@ struct Symbol_Table_Entry
     char label[30];
 };
 
-static void CreateStringOfSize(u32 count, char **result, b32 add_terminator)
+static void CreateStringOfSize(u32 count, char **result)
 {
-    *result = (char *)malloc((count + 1) * sizeof(char));
-
-    if(add_terminator)
-    {
-        result[count] = '\0'; // null terminator   
-    }    
+    *result = (char *)malloc((count) * sizeof(char));
 }
 
 static void CreateStringArrayOfSize(u32 rows, u32 columns, char **result)
 {
-    *result = (char *)malloc((rows + columns) * sizeof(char));
+    *result = (char *)malloc((rows * columns) * sizeof(char));
 }
     // Currently, heap allocations occur without deletion
     // TODO: Create memory arenas for different allocations
     // TODO: Dynamically allocate based on file size
-    // TODO: Get data path dynamically 
 int main(int argc, char **argv)
 {
     char exe_path[260];
     GetModuleFileNameA(NULL, exe_path, sizeof(exe_path));
 
+    // TODO: Get data path dynamically 
     char data_path[260];
     strcpy_s(data_path, sizeof(data_path), exe_path);
     strcat_s(data_path, "\\..\\data\\");
     strcat_s(data_path, "Example.txt");
+    data_path[259] = '\0';
 
     FILE *text_file = fopen("Example.txt", "rb");
     
@@ -61,19 +57,45 @@ int main(int argc, char **argv)
         return 0;
     }
 
+    // character count
     fseek (text_file , 0 , SEEK_END);
-    u64 file_size = ftell (text_file);
-    rewind (text_file);
+    u64 file_size = ftell(text_file);
+    fseek(text_file, 0, SEEK_SET);
 
-    char *source_statement;
-    CreateStringOfSize((u32)file_size, &source_statement, false);
+    /* // line count
+    u32 line_count = 0;
+    for(u32 c = getc(text_file); c != EOF; c = getc(text_file))
+    {
+        if (c == '\n')
+        {
+            ++line_count;
+        }
+    } */
 
-    size_t diff = fread(source_statement, 1, (u32)file_size, text_file);
+    // char *source_statement = (char *)malloc(file_size * sizeof(char));
+    char source_statement[500];
 
-    char *modifiable_statement;
-    CreateStringOfSize((u32)file_size, &modifiable_statement, false);
+    size_t check = fread(source_statement, 1, file_size, text_file);
+    if(check == (u32)file_size)
+    {
+        printf("File successfully read\n");
+    }
+    else
+    {
+        if(feof(text_file))
+        {
+            printf("Unexpected end of file\n");
+        }
+        else if(ferror(text_file))
+        {
+            printf("Error reading file\n");
+        }
+    }
 
-    strcpy(modifiable_statement, source_statement);
+    source_statement[file_size] = '\0';
+
+
+    char modifiable_statement[500];
 
     char *format_one_instructions[6];
     format_one_instructions[0] = "FIX";
@@ -96,80 +118,63 @@ int main(int argc, char **argv)
     format_two_instructions[9] = "SVC";
     format_two_instructions[10] = "TIXR";
 
-   char label[30] = {};
-   char instruction[30];
-   char operand[30];
-   char instruction_cache[200][30];
-   char operand_cache[200][30];
+    char label[50];
 
-    u32 index_into_instruction_cache = 0;
-    u32 index_into_operand_cache = 0;
+    char instruction[50];
 
-    // Arrays
-    // fel satr, hn7otaha fe array
-    // array, 2, 3
+    char operand[50];
 
-    char *words[2] = {"0"};
-    u32 index_word = 0;
-   char *newline_token = strtok(modifiable_statement, "\n");
-   char *space_token;
+    strcpy(modifiable_statement, source_statement);
+    char *next_line;
+    next_line = strtok(modifiable_statement, "\n");
     u32 program_start = 0;
 
-    Symbol_Table_Entry entry_collection[200] = {};
+    Symbol_Table_Entry symbol_entries[500];
     u32 entry_collection_index = 0;
 
-   while(newline_token != NULL)
-   {
-        char line[400];
-        strcpy(line, newline_token);
+    char instruction_cache[500][50];
+    u32 index_into_instruction_cache = 0;
 
+    char operand_cache[500][50];
+    u32 index_into_operand_cache = 0;
+
+   while(next_line != 0)
+   {
     u32 count = 1;
-    for (u32 i = 0; newline_token[i] != '\0'; i++)
+    for (u32 i = 0; next_line[i] != '\0'; i++)
     {
-        if (newline_token[i] == ' ' && newline_token[i+1] != ' ')
+        if (next_line[i] == ' ' && next_line[i+1] != ' ')
             count++;    
     }
 
     if(count == 3)
     {
-        sscanf(line, "%s %s %s", label, instruction, operand);
-        strcpy_s(entry_collection[entry_collection_index].label,
-                sizeof(entry_collection[entry_collection_index].label),
-                label);
+        if(strcmp(instruction, "START") == 0)
+        {
+            program_start = atoi(operand);
+        }
+            sscanf(next_line, "%s %s %s", label, instruction, operand);
+            strcpy(symbol_entries[entry_collection_index].label, label);
+            entry_collection_index++;
+
+    }
+    else
+    {
+        sscanf(next_line, "%s %s", instruction, operand);
+        strcpy(symbol_entries[entry_collection_index].label, "null");
         entry_collection_index++;
-    }
-    else
-    {
-        sscanf(line, "%s %s", instruction, operand);
-    }
+    } 
 
-        
-        newline_token = strtok(NULL, "\n");
+    strcpy(instruction_cache[index_into_instruction_cache], instruction);
+    index_into_instruction_cache++;
 
-    if(strcmp(instruction, "START") == 0)
-    {
-        program_start = atoi(operand);
-    }
+    strcpy(operand_cache[index_into_operand_cache], operand);
+    index_into_operand_cache++;
 
-    else
-    {
-
-        strcpy_s(instruction_cache[index_into_instruction_cache],
-                 sizeof(instruction_cache[index_into_instruction_cache]), 
-                 instruction);
-
-        index_into_instruction_cache++;
-
-        strcpy_s(operand_cache[index_into_operand_cache],
-                 sizeof(operand_cache[index_into_operand_cache]),
-                 operand);
-
-        index_into_operand_cache++;
-        
-    }
+    next_line = strtok(0, "\n");  
    }
 
-    u32 location_counter[200] = {};
+    u32 location_counter[500] = {};
     location_counter[0] = program_start;
     u32 location_counter_index = 1;
 
@@ -178,7 +183,7 @@ int main(int argc, char **argv)
     char format_six_token = '$';
     b32 is_format_one = false;
     b32 is_format_two = false;
-    for(u32 instruction_index = 0; instruction_index < 6; ++instruction_index)
+    for(u32 instruction_index = 0; instruction_index < 500; ++instruction_index)
     {
         // directive checking
         // RESW. RESB. WORD. BYTE
@@ -195,6 +200,11 @@ int main(int argc, char **argv)
         else if(strcmp(instruction_cache[instruction_index], "WORD") == 0)
         {
             location_counter[location_counter_index] = location_counter[location_counter_index - 1] + 3;
+            location_counter_index++;
+        }
+        else if(strcmp(instruction_cache[instruction_index], "START") == 0)
+        {
+            location_counter[location_counter_index + 1] = location_counter[location_counter_index];
             location_counter_index++;
         }
         else if(strcmp(instruction_cache[instruction_index], "BYTE") == 0)
@@ -291,49 +301,51 @@ int main(int argc, char **argv)
         }
     }
 
-    char hexadecimal_location_counter[200][20] = {};
+    char hexadecimal_location_counter[500][50] = {};
     // Time to get location counter values in hexadecimal
     char buffer[512];
-    for(u32 location_index = 0; location_index < 200; ++location_index)
+    for(u32 location_index = 0; location_index < 500; ++location_index)
     {
 		sprintf_s(buffer, sizeof(buffer), "%x\n", location_counter[location_index]);
-        strcpy_s(hexadecimal_location_counter[location_index],
-        sizeof(hexadecimal_location_counter[location_index]),
-        buffer);
-
-        strcpy_s(buffer,
-        sizeof(buffer),
-        " ");
+        strcpy(hexadecimal_location_counter[location_index], buffer);
+        strcpy(buffer, " ");
     }
 
-    for(u32 index = 0; index < 200; ++index)
+    for(u32 index = 0; index < 500; ++index)
     {
-        strcpy_s(entry_collection[index].location, 
-        sizeof(entry_collection[index].location),
-        hexadecimal_location_counter[index]);
+        strcpy(symbol_entries[index].location, hexadecimal_location_counter[index]);
     }
 
-    FILE *output_file = fopen("out.txt", "ab");
+    FILE *output_file = fopen("out.txt", "wb");
 
     if(output_file == NULL)
     {
         // Something is wrong
     }
 
-    for (u32 location_index = 0; location_index < 200; ++location_index)
+    for (u32 location_index = 0; location_index < 500; ++location_index)
     {
          fprintf(output_file, "%s\n", hexadecimal_location_counter[location_index]);
     } 
 
-    output_file = fopen("symbTable.txt", "ab");
+    output_file = fopen("symbTable.txt", "wb");
     if (output_file == NULL)
     {
         // something is wrong
     }
 
-    for (u32 symbol_index = 0; symbol_index < 200; ++symbol_index)
+    for (u32 symbol_index = 0; symbol_index < 500; ++symbol_index)
     {
-        fprintf(output_file, "%s %s\n", entry_collection[symbol_index].location, entry_collection[symbol_index].label);
+        if(strcmp(symbol_entries[symbol_index].label, "null") != 0)
+        {
+            fprintf(output_file, "%s\t%s\n", symbol_entries[symbol_index].label, symbol_entries[symbol_index].location);
+        }
+    }
+
+    printf("Symbol\tLocation\n");
+    for(u32 term_index = 1; term_index < 500; ++term_index)
+    {
+        printf("%s\t%s", symbol_entries[term_index].label, symbol_entries[term_index].location);
     }
 
     fclose(output_file);
