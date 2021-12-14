@@ -19,41 +19,55 @@
 
 #define b32 uint32_t
 
+// Max directory length
+#define MAX_PATH 260
+
 struct Symbol_Table_Entry
 {
     char location[30];
     char label[30];
 };
 
-static void CreateStringOfSize(u32 count, char **result)
-{
-    *result = (char *)malloc((count) * sizeof(char));
-}
-
-static void CreateStringArrayOfSize(u32 rows, u32 columns, char **result)
-{
-    *result = (char *)malloc((rows * columns) * sizeof(char));
-}
-    // Currently, heap allocations occur without deletion
-    // TODO: Create memory arenas for different allocations
-    // TODO: Dynamically allocate based on file size
+// TODO: Allocate strings dynamically based on file requirements
+// IMPORTANT: strings are allocated without deletion
 int main(int argc, char **argv)
 {
-    char exe_path[260];
+    char exe_path[MAX_PATH];
+
+    // Win32 API specifies loose conditions on whether the returned string is null-terminated
     GetModuleFileNameA(NULL, exe_path, sizeof(exe_path));
+    exe_path[MAX_PATH - 1] = '\0'; // enforce null termination on returned string
 
-    // TODO: Get data path dynamically 
-    char data_path[260];
-    strcpy_s(data_path, sizeof(data_path), exe_path);
-    strcat_s(data_path, "\\..\\data\\");
-    strcat_s(data_path, "Example.txt");
-    data_path[259] = '\0';
-
-    FILE *text_file = fopen("Example.txt", "rb");
-    
-    if(text_file == nullptr)
+    // Extract pointer to executable name
+    char *exe_name;
+    for(char *scan = exe_path; *scan; ++scan)
     {
-        // log file not found
+        if(*scan == '\\')
+        {
+            exe_name = scan + 1;
+        }
+    }
+
+    // This section builds the data path
+    // IMPORTANT: MAX_PATH is the max applicable directory length on Windows
+    //            The possibility of a path exceeding that limit is small
+    //            Even then, it would be wise to study this case further
+    //            There is a possibility that the Win32 API has defined an old value for MAX_PATH
+    // STUDY: What is the true maximum path on Windows  
+    u32 data_path_length = (u32)strlen(exe_path) - (u32)strlen(exe_name); // entire path - exe name gives back the start of the data path
+    char data_path[MAX_PATH]; // allocate sufficient space for path
+    data_path[MAX_PATH - 1] = '\0'; // enforce null termination
+    memcpy(data_path, exe_path, data_path_length); // copy data path from exe path
+    strcat(data_path, "..\\data\\"); // add data directory
+    char data_dir[MAX_PATH];
+    strcpy(data_dir, data_path);
+    strcat(data_dir, "Example.txt"); // NOTE: this will be the file to be accessed
+
+    FILE *text_file;
+    text_file = fopen(data_dir, "rb");
+    if(!text_file)
+    {
+        printf("{ERROR} File not found!");
         return 0;
     }
 
@@ -316,7 +330,9 @@ int main(int argc, char **argv)
         strcpy(symbol_entries[index].location, hexadecimal_location_counter[index]);
     }
 
-    FILE *output_file = fopen("out.txt", "wb");
+    strcpy(data_dir, data_path);
+    strcat(data_dir, "out.txt"); // NOTE: this will be the file to be accessed
+    FILE *output_file = fopen(data_dir, "wb");
 
     if(output_file == NULL)
     {
@@ -328,7 +344,9 @@ int main(int argc, char **argv)
          fprintf(output_file, "%s\n", hexadecimal_location_counter[location_index]);
     } 
 
-    output_file = fopen("symbTable.txt", "wb");
+    strcpy(data_dir, data_path);
+    strcat(data_dir, "symbTable.txt"); // NOTE: this will be the file to be accessed
+    output_file = fopen(data_dir, "wb");
     if (output_file == NULL)
     {
         // something is wrong
