@@ -19,6 +19,9 @@
 
 #define b32 uint32_t
 
+#define KILOBYTES(value) (value*1024LL)
+#define MEGABYTES(value) (KILOBYTES(value)*1024LL)
+
 // Max directory length
 #define MAX_PATH 260
 
@@ -28,10 +31,37 @@ struct Symbol_Table_Entry
     char label[30];
 };
 
+struct MemoryArena
+{
+	u8 *Base;
+	size_t Size;
+	size_t Used;
+};
+
+static void
+InitializeArena(MemoryArena *arena, size_t size, u8 *base)
+{
+	arena->Base = base;
+	arena->Size = size;
+	arena->Used = 0;
+}
+
+#define PushStruct(Arena, type) (type *)PushSize_(Arena, sizeof(type))
+#define PushArray(Arena, Count, type) (type *)PushSize_(Arena, (Count)*sizeof(type))
+void *
+PushSize_(MemoryArena *arena, size_t size)
+{
+    void *Result = arena->Base + arena->Used; // Retrieve a pointer to the latest memory index before adding the memory
+   	arena->Used += size; // add the new size to our index
+    
+    return(Result);
+}
+
 // TODO: Allocate strings dynamically based on file requirements
 // IMPORTANT: strings are allocated without deletion
 int main(int argc, char **argv)
 {
+    void *Storage = malloc(MEGABYTES(2));
     char exe_path[MAX_PATH];
 
     // Win32 API specifies loose conditions on whether the returned string is null-terminated
@@ -89,8 +119,9 @@ int main(int argc, char **argv)
     // char *source_statement = (char *)malloc(file_size * sizeof(char));
     char source_statement[500];
 
-    size_t check = fread(source_statement, 1, file_size, text_file);
-    if(check == (u32)file_size)
+    // fread returns the amount of bytes returned
+    size_t read_file_size = fread(source_statement, 1, file_size, text_file);
+    if(read_file_size == (u32)file_size)
     {
         printf("File successfully read\n");
     }
@@ -369,6 +400,8 @@ int main(int argc, char **argv)
     fclose(output_file);
 
     fclose(text_file);
+
+    free(Storage);
     system("PAUSE");
     return(0);
 }
